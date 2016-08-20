@@ -1,0 +1,4 @@
+*.pyc
+WINE_data
+MNIST_data
+results
