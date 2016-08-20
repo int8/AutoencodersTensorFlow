@@ -16,22 +16,16 @@ decoder_network_graph = MultiLayerPerceptron(10, [32],  178, encoder_network_gra
 decoder_network_graph.build_computational_graph([tf.nn.sigmoid, tf.nn.sigmoid])
 
 similarities = [
-    # DenseCosineSimilarity(standardized = True,  sigmoidal_normalized = True),
-    # DenseCosineSimilarity(standardized = True,  sigmoidal_normalized = False),
-    # NormalizedDenseCosineSimilarity(standardized = True,  sigmoidal_normalized = True),
-    # NormalizedDenseCosineSimilarity(standardized = True,  sigmoidal_normalized = False),
-    # DenseGaussianSimilarity(sigma = 0.9, standardized = True, sigmoidal_normalized = True),
-    # DenseGaussianSimilarity(sigma = 0.5, standardized = True, sigmoidal_normalized = True),
-    # DenseGaussianSimilarity(sigma = 0.1, standardized = True, sigmoidal_normalized = True),
-    # DenseGaussianSimilarity(sigma = 0.9, standardized = True, sigmoidal_normalized = False),
-    # DenseGaussianSimilarity(sigma = 0.5, standardized = True, sigmoidal_normalized = False),
-    # DenseGaussianSimilarity(sigma = 0.1, standardized = True, sigmoidal_normalized = False),
-    # SparseGaussianSimilarity(sigma = 0.1, standardized = True, k = 30, sigmoidal_normalized = True),
-    # SparseGaussianSimilarity(sigma = 0.5, standardized = True, k = 30, sigmoidal_normalized = True),
-    SparseGaussianSimilarity(sigma = 0.9, standardized = True, k = 30, sigmoidal_normalized = True),
-    SparseGaussianSimilarity(sigma = 0.1, standardized = True, k = 30, sigmoidal_normalized = False),
-    SparseGaussianSimilarity(sigma = 0.5, standardized = True, k = 30, sigmoidal_normalized = False),
-    SparseGaussianSimilarity(sigma = 0.9, standardized = True, k = 30, sigmoidal_normalized = False)
+    DenseCosineSimilarity(standardized = True,  sigmoidal_normalized = True),
+    DenseCosineSimilarity(standardized = True,  sigmoidal_normalized = False),
+    NormalizedDenseCosineSimilarity(standardized = True,  sigmoidal_normalized = True),
+    NormalizedDenseCosineSimilarity(standardized = True,  sigmoidal_normalized = False),
+    DenseGaussianSimilarity(sigma = 0.9, standardized = True, sigmoidal_normalized = True),
+    DenseGaussianSimilarity(sigma = 0.5, standardized = True, sigmoidal_normalized = True),
+    DenseGaussianSimilarity(sigma = 0.1, standardized = True, sigmoidal_normalized = True),
+    DenseGaussianSimilarity(sigma = 0.9, standardized = True, sigmoidal_normalized = False),
+    DenseGaussianSimilarity(sigma = 0.5, standardized = True, sigmoidal_normalized = False),
+    DenseGaussianSimilarity(sigma = 0.1, standardized = True, sigmoidal_normalized = False),
 ]
 
 all_results = []
@@ -42,7 +36,3 @@ for similarity in similarities:
 
     with open('results/chunks_64_32_10_32/' + (hashlib.md5(str(similarity))).hexdigest() + '.txt', 'a+') as outfile:
         json.dump(expertiment_results, outfile)
-
-#
-# with open('results/data.txt', 'a+') as outfile:
-#     json.dump(all_results, outfile)
