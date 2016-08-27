@@ -1,6 +1,45 @@
 import numpy as np
 import tensorflow as tf
+from tf_utils import *
+from io_utils import DatasetIterator
 
+class GreedyAutoencoder:
+
+    def __init__(self, optimizer):
+        self.optimizer = optimizer;
+        self.autoencoders = []
+
+    def add_layer(self, input_size, size, activation_encoder, activation_decoder):
+        encoder_network_graph, decoder_network_graph = self.build_autocoder_components(input_size, size, activation_encoder, activation_decoder)
+        autoencoder = Autoencoder(encoder_network_graph, decoder_network_graph, self.optimizer,  least_squares_reconstruction_error)
+        self.autoencoders.append(autoencoder)
+
+
+    def add_sparse_layer(self, input_size, size, activation_encoder, activation_decoder, beta, rho ):
+        encoder_network_graph, decoder_network_graph = self.build_autocoder_components(input_size, size, activation_encoder, activation_decoder)
+        autoencoder = SparseAutoencoder(encoder_network_graph, decoder_network_graph, self.optimizer,  least_squares_reconstruction_error,  beta, rho)
+        self.autoencoders.append(autoencoder)
+
+
+    def build_autocoder_components(self, input_size, size, activation_encoder, activation_decoder):
+        encoder_network_graph = MultiLayerPerceptron(input_size, [], size)
+        encoder_network_graph.build_computational_graph([activation_encoder])
+
+        decoder_network_graph = MultiLayerPerceptron(size, [],  input_size, encoder_network_graph.get_network_output())
+        decoder_network_graph.build_computational_graph([activation_decoder])
+
+        return (encoder_network_graph, decoder_network_graph)
+
+    def train(self, dataset, nr_of_batches, batch_size):
+
+        current_dataset = dataset
+        for i in xrange(len(self.autoencoders)):
+            self.autoencoders[i].init_tf_session()
+            self.autoencoders[i].train(current_dataset, nr_of_batches, batch_size)
+            current_dataset = self.autoencoders[i].get_codes_values_iterator(current_dataset)
+            self.autoencoders[i].close_tf_session()
+
+        return current_dataset.whole_dataset()[0]
 
 class Autoencoder:
 
@@ -13,11 +52,18 @@ class Autoencoder:
         self.train_step = optimizer.minimize(self.error_function_node)
 
 
+
     def get_codes_nodes(self):
         return self.encoder.get_network_output()
 
     def get_codes_values(self, data):
         return self.sess.run(self.get_codes_nodes(), feed_dict={self.encoder.input_data: data });
+
+    def get_codes_values_iterator(self, data):
+
+        X = self.sess.run(self.get_codes_nodes(), feed_dict={self.encoder.input_data: data.whole_dataset()[0] });
+        return DatasetIterator(X, [])
+
 
     def get_reconstruction(self):
         return self.decoder.get_network_output()
@@ -27,7 +73,7 @@ class Autoencoder:
         self.sess = tf.Session();
         self.sess.run(init);
 
-    def run(self,dataset, nr_of_batches, batch_size):
+    def train(self,dataset, nr_of_batches, batch_size):
 
         for i in xrange(1,nr_of_batches):
             current_batch = dataset.next_batch(batch_size)

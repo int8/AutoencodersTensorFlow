@@ -163,8 +163,7 @@ class NormalizedDenseCosineSimilarity(SimilarityBase):
         return description
 
 
-
-class DatasetIterator:
+class SimilarityBasedDatasetIterator():
 
     def __init__(self, data, labels, similarity):
         self.data = data
@@ -175,6 +174,21 @@ class DatasetIterator:
 
     def next_batch(self, n):
         return (self.matrix.transpose(), self.labels)
+
+    def whole_dataset(self):
+        return (self.matrix.transpose(), self.labels)
+
+class DatasetIterator:
+
+    def __init__(self, data, labels):
+        self.data = data
+        self.labels = labels
+
+    def next_batch(self, n):
+        return (self.data, self.labels)
+
+    def whole_dataset(self):
+        return (self.data, self.labels)
 
 
 def download_wine_data(directory):
@@ -196,4 +210,4 @@ def download_wine_data(directory):
 
 def read_wine_data(directory, similarity):
     data, labels = download_wine_data(directory)
-    return DatasetIterator(data, labels, similarity)
+    return SimilarityBasedDatasetIterator(data, labels, similarity)

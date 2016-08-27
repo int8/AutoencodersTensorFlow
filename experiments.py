@@ -17,7 +17,39 @@ def run_wine_experiment_sparsity(similarity, encoder_network_graph, decoder_netw
     return run_wine_experiment_core(similarity, encoder_network_graph, decoder_network_graph, nr_of_experiments,  nr_of_batches, True, rho, beta)
 
 
-def run_wine_experiment_core(similarity, encoder_network_graph, decoder_network_graph, nr_of_experiments,  nr_of_batches, sparse = None, rho = None, beta = None):
+def run_wine_experiment_greedy_core(similarity, nr_of_experiments,  nr_of_batches, sparse = None, beta = None, rho = None ):
+
+    wine = read_wine_data("WINE_data/", similarity)
+    X = wine.next_batch(1)[0]
+    indx =  spectral_clustering(X)
+    spectral_nmi  =  (normalized_mutual_info_score(wine.next_batch(1)[1], indx))
+    results = []
+
+    for i in tqdm(range(nr_of_experiments)):
+
+        g = GreedyAutoencoder(tf.train.AdamOptimizer())
+        if sparse:
+            g.add_sparse_layer(178, 64, tf.nn.sigmoid, tf.nn.sigmoid, beta, rho)
+            g.add_sparse_layer(64, 32, tf.nn.sigmoid, tf.nn.sigmoid, beta, rho)
+            g.add_sparse_layer(32, 10, tf.nn.sigmoid, tf.nn.sigmoid, beta, rho)
+        else:
+            g.add_layer(178, 64, tf.nn.sigmoid, tf.nn.sigmoid)
+            g.add_layer(64, 32, tf.nn.sigmoid, tf.nn.sigmoid)
+            g.add_layer(32, 10, tf.nn.sigmoid, tf.nn.sigmoid)
+
+        encoded_dataset  = g.train(wine, nr_of_batches, 178)
+
+        centroids,_ =  kmeans(encoded_dataset,  3, 400)
+
+        idx,_ = vq(encoded_dataset,centroids)
+        results.append((normalized_mutual_info_score(wine.next_batch(178)[1], idx)))
+
+        print normalized_mutual_info_score(wine.next_batch(178)[1], idx)
+
+    return {"desc": str(similarity), "spectral_nmi": spectral_nmi,  "experiment_results": results}
+
+
+def run_wine_experiment_core(similarity, encoder_network_graph, decoder_network_graph, nr_of_experiments,  nr_of_batches, sparse = None,  beta = None, rho = None):
 
     wine = read_wine_data("WINE_data/", similarity)
     X = wine.next_batch(1)[0]
