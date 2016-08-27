@@ -16,14 +16,6 @@ def l2_regularization_error_component(lambda_param, weights):
         result = result + tf.nn.l2_loss(weight)
     return tf.mul(lambda_param , result)
 
-def log_func(a, b):
-    return tf.mul(a, tf.log(tf.div(a ,b)))
-
-def kl_divergance(rho, rho_hat):
-    invrho = tf.sub(tf.constant(1.), rho)
-    invrhohat = tf.sub(tf.constant(1.), rho_hat)
-    logrho = tf.add(log_func(rho,rho_hat), log_func(invrho, invrhohat))
-    return logrho
 
 def spectral_clustering(W):
     D_ = LA.matrix_power(np.diag(np.sum(W, 0)),-1/2)

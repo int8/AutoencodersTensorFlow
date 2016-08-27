@@ -4,12 +4,11 @@ import tensorflow as tf
 
 class Autoencoder:
 
-    def __init__(self, encoder, decoder, optimizer, error_function, reg_error_component = None):
+    def __init__(self, encoder, decoder, optimizer, error_function):
 
         self.encoder = encoder
         self.decoder = decoder
         self.error_function = error_function
-        self.reg_error_component = reg_error_component
         self.error_function_node = self.error_function(self.decoder.get_network_output(),self.encoder.input_data)
         self.train_step = optimizer.minimize(self.error_function_node)
 
@@ -75,3 +74,23 @@ class MultiLayerPerceptron:
             raise Exception("Graph has not been built - please build computational graph using build_computational_graph function")
 
         return self.network_flow[-1]
+
+
+
+class SparseAutoencoder(Autoencoder):
+
+    def __init__(self, encoder, decoder, optimizer, error_function, beta, rho):
+         Autoencoder.__init__(self, encoder, decoder, optimizer, error_function)
+         self.error_function_node = self.error_function_node + self.sparsity_regularization_error_component(beta, rho, encoder.get_network_output())
+
+    def sparsity_regularization_error_component(self, beta, rho, codes):
+         return tf.mul(beta ,  tf.reduce_sum(self.kl_divergance(rho, tf.reduce_mean(codes,0))))
+
+    def log_func(self, a, b):
+        return tf.mul(a, tf.log(tf.div(a ,b)))
+
+    def kl_divergance(self, rho, rho_hat):
+        invrho = tf.sub(tf.constant(1.), rho)
+        invrhohat = tf.sub(tf.constant(1.), rho_hat)
+        logrho = tf.add(self.log_func(rho,rho_hat), self.log_func(invrho, invrhohat))
+        return logrho
