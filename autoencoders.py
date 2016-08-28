@@ -11,14 +11,24 @@ class GreedyAutoencoder:
 
     def add_layer(self, input_size, size, activation_encoder, activation_decoder):
         encoder_network_graph, decoder_network_graph = self.build_autocoder_components(input_size, size, activation_encoder, activation_decoder)
-        autoencoder = Autoencoder(encoder_network_graph, decoder_network_graph, self.optimizer,  least_squares_reconstruction_error)
+        autoencoder = Autoencoder(encoder_network_graph, decoder_network_graph, least_squares_reconstruction_error)
         self.autoencoders.append(autoencoder)
 
 
     def add_sparse_layer(self, input_size, size, activation_encoder, activation_decoder, beta, rho ):
         encoder_network_graph, decoder_network_graph = self.build_autocoder_components(input_size, size, activation_encoder, activation_decoder)
-        autoencoder = SparseAutoencoder(encoder_network_graph, decoder_network_graph, self.optimizer,  least_squares_reconstruction_error,  beta, rho)
+        autoencoder = SparseAutoencoder(encoder_network_graph, decoder_network_graph,  least_squares_reconstruction_error,  beta, rho)
         self.autoencoders.append(autoencoder)
+
+    def add_sparse_layer_hoyer(self, input_size, size, activation_encoder, activation_decoder):
+        encoder_network_graph, decoder_network_graph = self.build_autocoder_components(input_size, size, activation_encoder, activation_decoder)
+        autoencoder = SparseAutoencoderHoyer(encoder_network_graph, decoder_network_graph,  least_squares_reconstruction_error)
+        self.autoencoders.append(autoencoder)
+
+
+    def build_error_function(self, optimizer = tf.train.AdamOptimizer()):
+        for autoencoder in self.autoencoders:
+            autoencoder.build_error_function(optimizer)
 
 
     def build_autocoder_components(self, input_size, size, activation_encoder, activation_decoder):
@@ -43,15 +53,11 @@ class GreedyAutoencoder:
 
 class Autoencoder:
 
-    def __init__(self, encoder, decoder, optimizer, error_function):
+    def __init__(self, encoder, decoder, error_function):
 
         self.encoder = encoder
         self.decoder = decoder
         self.error_function = error_function
-        self.error_function_node = self.error_function(self.decoder.get_network_output(),self.encoder.input_data)
-        self.train_step = optimizer.minimize(self.error_function_node)
-
-
 
     def get_codes_nodes(self):
         return self.encoder.get_network_output()
@@ -64,6 +70,9 @@ class Autoencoder:
         X = self.sess.run(self.get_codes_nodes(), feed_dict={self.encoder.input_data: data.whole_dataset()[0] });
         return DatasetIterator(X, [])
 
+    def build_error_function(self, optimizer):
+        self.error_function_node = self.error_function(self.decoder.get_network_output(),self.encoder.input_data)
+        self.train_step = optimizer.minimize(self.error_function_node)
 
     def get_reconstruction(self):
         return self.decoder.get_network_output()
@@ -92,6 +101,7 @@ class MultiLayerPerceptron:
         self.weights = [];
         self.biases = [];
         self.graph_built = False
+        self.output_size = output_size
 
         all_sizes_array = np.hstack([input_size, hidden_layer_sizes, output_size]) if len(hidden_layer_sizes) > 0 else np.array([input_size, output_size]);
 
@@ -125,12 +135,18 @@ class MultiLayerPerceptron:
 
 class SparseAutoencoder(Autoencoder):
 
-    def __init__(self, encoder, decoder, optimizer, error_function, beta, rho):
-         Autoencoder.__init__(self, encoder, decoder, optimizer, error_function)
-         self.error_function_node = self.error_function_node + self.sparsity_regularization_error_component(beta, rho, encoder.get_network_output())
+    def __init__(self, encoder, decoder, error_function, beta, rho):
+         Autoencoder.__init__(self, encoder, decoder, error_function)
+         self.beta = beta
+         self.rho = rho
 
-    def sparsity_regularization_error_component(self, beta, rho, codes):
-         return tf.mul(beta ,  tf.reduce_sum(self.kl_divergance(rho, tf.reduce_mean(codes,0))))
+    def build_error_function(self , optimizer):
+        self.error_function_node =  self.error_function(self.decoder.get_network_output(),self.encoder.input_data) + self.sparsity_regularization_error_component()
+        self.train_step = optimizer.minimize(self.error_function_node)
+
+    def sparsity_regularization_error_component(self):
+         codes = self.get_codes_nodes()
+         return tf.mul(self.beta ,  tf.reduce_sum(self.kl_divergance(self.rho, tf.reduce_mean(codes,1)), 0))
 
     def log_func(self, a, b):
         return tf.mul(a, tf.log(tf.div(a ,b)))
@@ -140,3 +156,61 @@ class SparseAutoencoder(Autoencoder):
         invrhohat = tf.sub(tf.constant(1.), rho_hat)
         logrho = tf.add(self.log_func(rho,rho_hat), self.log_func(invrho, invrhohat))
         return logrho
+
+    def get_sparsify_component_value(self, dataset):
+        return self.sess.run(self.sparsity_regularization_error_component(), feed_dict={self.encoder.input_data: dataset.whole_dataset()[0] })
+
+
+
+
+
+class SparseAutoencoderHoyer(Autoencoder):
+
+    def __init__(self, encoder, decoder, error_function):
+         Autoencoder.__init__(self, encoder, decoder, error_function)
+
+    def build_error_function(self, optimizer):
+        self.error_function_node = self.error_function(self.decoder.get_network_output(),self.encoder.input_data)  + self.sparsity_regularization_error_component()
+        self.train_step = optimizer.minimize(self.error_function_node)
+
+    def sparsity_regularization_error_component(self, goal_sparsity = 0.9, beta = 1):
+         codes = self.get_codes_nodes()
+         return beta * tf.nn.l2_loss(
+                            tf.sub(
+                                goal_sparsity,
+                                tf.reduce_mean(
+                                    tf.div(
+                                        tf.sub(
+                                            tf.sqrt(tf.to_float(self.encoder.output_size)),
+                                            tf.div(
+                                                tf.reduce_sum(tf.abs(codes), 1),
+                                                tf.sqrt(tf.reduce_sum(tf.square(codes), 1))
+                                            )
+                                        ),
+                                        tf.sqrt(tf.to_float(self.encoder.output_size)) - 1
+                                    )
+                                )
+                            )
+                        )
+
+    def get_sparsity_value(self, dataset):
+
+        codes = self.get_codes_nodes()
+        return  self.sess.run(
+                    tf.reduce_mean(
+                        tf.div(
+                            tf.sub(
+                                tf.sqrt(tf.to_float(self.encoder.output_size)),
+                                tf.div(
+                                    tf.reduce_sum(tf.abs(codes), 1),
+                                    tf.sqrt(tf.reduce_sum(tf.square(codes), 1))
+                                )
+                            ),
+                            tf.sqrt(tf.to_float(self.encoder.output_size)) - 1
+                        )
+                    ),
+                    feed_dict={self.encoder.input_data: dataset.whole_dataset()[0] }
+                )
+
+    def get_sparsify_component_value(self, dataset):
+        return self.sess.run(self.sparsity_regularization_error_component(), feed_dict={self.encoder.input_data: dataset.whole_dataset()[0] })
